@@ -47,24 +47,24 @@ application = Application
                 <> help "Target for the greeting" )
               <*> ffiMapping
               <*> strOption
-              ( long "hello"
+              ( long "target"
                 <> metavar "TARGET"
-                <> help "Target for the greeting" )
+                <> help "Target version" )
               <*> strOption
-              ( long "quiet"
-                <> short 'q'
-                <> help "Whether to be quiet" )
+              ( long "package-prefix"
+                <> short 'p'
+                <> help "The prefix you want for your packages" )
               <*> switch
               ( long "global-multi-file"
                 <> help "Individual Eta module per class" )
 
 main :: IO ()
-main = greet =<< execParser opts
+main = app =<< execParser opts
   where
     opts = info (application <**> helper)
-      (header "hello - a test for optparse-applicative" )
+      (header "a test for optparse-applicative" )
 
-greet :: Application -> IO ()
-greet (Application c f t p False) = putStrLn $ "Test" ++c ++ t ++ p
-greet (Application c f t p True) = putStrLn $ "Test" ++c ++ t ++ p 
+app :: Application -> IO ()
+app (Application c f t p False) = putStrLn $ "Test" ++c ++ t ++ p
+app (Application c f t p True) = putStrLn $ "Test" ++c ++ t ++ p 
 
