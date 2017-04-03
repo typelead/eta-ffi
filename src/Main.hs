@@ -1,7 +1,8 @@
 module Main where
 
 import Options.Applicative
-import Data.Semigroup ((<>))
+
+--import Data.Semigroup ((<>))
 
 {-
 eta-ffi -jar spark-2.0.1.jar org.apache.spark.* -package-prefix Spark
@@ -21,14 +22,49 @@ Single * means just that package
 
 -}
 
+data FFIMapping = FFIMapping FilePath
+
 data Application = Application
   { classpath :: String
-  , ffi    :: String
+  , ffi    :: FFIMapping
   , target :: String
   , packagePrefix :: String
+  , globalFile :: Bool
   }
 
+ffiMapping :: Parser FFIMapping
+ffiMapping = FFIMapping <$> strOption
+             (  long "file"
+               <> short 'f'
+               <> metavar "FILENAME"
+               <> help "Input file" )
+
+application :: Parser Application
+application = Application
+              <$> strOption
+              ( long "classpath"
+                <> metavar "TARGET"
+                <> help "Target for the greeting" )
+              <*> ffiMapping
+              <*> strOption
+              ( long "hello"
+                <> metavar "TARGET"
+                <> help "Target for the greeting" )
+              <*> strOption
+              ( long "quiet"
+                <> short 'q'
+                <> help "Whether to be quiet" )
+              <*> switch
+              ( long "global-multi-file"
+                <> help "Individual Eta module per class" )
 
 main :: IO ()
-main = do
-  putStrLn "hello world"
+main = greet =<< execParser opts
+  where
+    opts = info (application <**> helper)
+      (header "hello - a test for optparse-applicative" )
+
+greet :: Application -> IO ()
+greet (Application c f t p False) = putStrLn $ "Test" ++c ++ t ++ p
+greet (Application c f t p True) = putStrLn $ "Test" ++c ++ t ++ p 
+
