@@ -34,10 +34,10 @@ data Application = Application
 
 ffiMapping :: Parser FFIMapping
 ffiMapping = FFIMapping <$> strOption
-             (  long "file"
+             (  long "ffi"
                <> short 'f'
                <> metavar "FILENAME"
-               <> help "Input file" )
+               <> help "FFI file name" )
 
 application :: Parser Application
 application = Application
