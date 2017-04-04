@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 module Main where
@@ -70,11 +71,14 @@ main = app =<< execParser opts
     opts = info (application <**> helper)
       (header "a test for optparse-applicative" )
 
-
-
-app :: Application -> IO ()
-app (Application {ffi}) = undefined 
-
 data FfiState = FfiState { ffiFile :: Map BL.ByteString BL.ByteString}
 
-type FfiMonad a = StateT FfiState Identity a
+type FfiMonad a = StateT FfiState IO a
+
+app :: Application -> IO ()
+app (Application {ffi = FFIMapping filepath,..}) = do
+  csvData <- BL.readFile filepath
+  evalStateT ffiAction (FfiState {ffiFile = parseFFI csvData})
+
+ffiAction :: FfiMonad ()
+ffiAction = undefined
