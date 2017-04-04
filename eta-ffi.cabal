@@ -18,5 +18,9 @@ executable eta-ffi
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5,
+                       bytestring >= 0.10.6.0,
+                       cassava,
+                       containers >= 0.5.6.2,
                        optparse-applicative,
-                       semigroups >= 0.18.2
+                       semigroups >= 0.18.2,
+                       vector >= 0.11.0.0

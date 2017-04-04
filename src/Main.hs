@@ -43,7 +43,7 @@ application :: Parser Application
 application = Application
               <$> strOption
               ( long "classpath"
-                <> metavar "TARGET"
+                <> metavar "CLASSPATH"
                 <> help "Target for the greeting" )
               <*> ffiMapping
               <*> strOption
