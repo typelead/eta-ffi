@@ -6,7 +6,7 @@ import Options.Applicative
 import FfiFileParser
 import Control.Monad.Trans.State
 import qualified Data.ByteString.Lazy as BL
-import Data.Map.Strict as M hiding (map)
+import Data.Map.Strict as M
 import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
