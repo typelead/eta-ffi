@@ -1,7 +1,13 @@
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 module Main where
 
 import Options.Applicative
-
+import FfiFileParser
+import Control.Monad.Trans.State
+import qualified Data.ByteString.Lazy as BL
+import Data.Map.Strict as M
+import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
 {-
@@ -64,7 +70,11 @@ main = app =<< execParser opts
     opts = info (application <**> helper)
       (header "a test for optparse-applicative" )
 
-app :: Application -> IO ()
-app (Application c f t p False) = putStrLn $ "Test" ++c ++ t ++ p
-app (Application c f t p True) = putStrLn $ "Test" ++c ++ t ++ p 
 
+
+app :: Application -> IO ()
+app (Application {ffi}) = undefined 
+
+data FfiState = FfiState { ffiFile :: Map BL.ByteString BL.ByteString}
+
+type FfiMonad a = StateT FfiState Identity a

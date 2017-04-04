@@ -23,4 +23,5 @@ executable eta-ffi
                        containers >= 0.5.6.2,
                        optparse-applicative,
                        semigroups >= 0.18.2,
+                       transformers >= 0.4.2.0,
                        vector >= 0.11.0.0
