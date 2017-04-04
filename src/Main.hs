@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 module Main where
@@ -7,7 +6,7 @@ import Options.Applicative
 import FfiFileParser
 import Control.Monad.Trans.State
 import qualified Data.ByteString.Lazy as BL
-import Data.Map.Strict as M
+import Data.Map.Strict as M hiding (map)
 import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
@@ -29,7 +28,7 @@ Single * means just that package
 
 -}
 
-data FFIMapping = FFIMapping FilePath
+data FFIMapping = FFIMapping [FilePath]
 
 data Application = Application
   { classpath :: String
@@ -40,11 +39,11 @@ data Application = Application
   }
 
 ffiMapping :: Parser FFIMapping
-ffiMapping = FFIMapping <$> strOption
+ffiMapping = FFIMapping <$> some (strOption
              (  long "ffi"
                <> short 'f'
                <> metavar "FILENAME"
-               <> help "FFI file name" )
+               <> help "FFI file name" ))
 
 application :: Parser Application
 application = Application
@@ -75,10 +74,13 @@ data FfiState = FfiState { ffiFile :: Map BL.ByteString BL.ByteString}
 
 type FfiMonad a = StateT FfiState IO a
 
+readFiles :: [FilePath] -> IO BL.ByteString
+readFiles = fmap BL.concat . mapM BL.readFile
+
 app :: Application -> IO ()
-app (Application {ffi = FFIMapping filepath,..}) = do
-  csvData <- BL.readFile filepath
-  evalStateT ffiAction (FfiState {ffiFile = parseFFI csvData})
+app (Application {ffi = FFIMapping filepaths,..}) = do
+  csvDatas <- readFiles filepaths
+  evalStateT ffiAction (FfiState {ffiFile = parseFFI csvDatas})
 
 ffiAction :: FfiMonad ()
 ffiAction = undefined
