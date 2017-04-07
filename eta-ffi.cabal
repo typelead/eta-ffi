@@ -20,7 +20,7 @@ executable eta-ffi
   build-depends:       base >= 4.7 && < 5,
                        bytestring >= 0.10.6.0,
                        cassava,
-		       codec-jvm >= 0,
+                       codec-jvm >= 0,
                        containers >= 0.5.6.2,
                        optparse-applicative,
                        semigroups >= 0.18.2,
