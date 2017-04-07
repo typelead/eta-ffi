@@ -1,0 +1,3 @@
+[submodule "codec-jvm"]
+	path = codec-jvm
+	url = https://github.com/rahulmutt/codec-jvm
