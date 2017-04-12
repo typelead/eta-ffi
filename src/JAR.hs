@@ -7,7 +7,7 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Map.Lazy (keys)
 import Path
-import Data.ByteString.Internal
+import Data.ByteString.Lazy
 
 
 getFilesFromJar :: (MonadThrow m, MonadCatch m, MonadIO m) =>
@@ -18,7 +18,7 @@ getFilesFromJar jarLocation =
           entrySelectors <- keys <$> getEntries
           forM entrySelectors $ \es -> do
             contents <- getEntry es
-            return (unEntrySelector es, contents)
+            return (unEntrySelector es, fromStrict contents)
 
 withUnsafePath :: (MonadCatch m, MonadThrow m) => FilePath -> (Path Rel File -> m [(Path Rel File, ByteString)]) -> (Path Abs File -> m [(Path Rel File, ByteString)]) -> m [(Path Rel File, ByteString)]
 withUnsafePath filepath action1 action2 =

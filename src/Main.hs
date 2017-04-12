@@ -6,12 +6,15 @@ module Main where
 
 import Options.Applicative
 --import FfiFileParser (parseFFI)
+import Control.Category hiding ((.))
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Map.Strict as M
-import Data.Text
+import Data.Map.Strict as M hiding (map,filter)
+import Data.Text hiding (map,filter)
+import Path
 import qualified Data.ByteString.Lazy as BL
+
 --import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
@@ -70,8 +73,19 @@ app = undefined
 --   csvDatas <- readFiles filepaths
 --   evalStateT ffiAction (FfiState {ffiFile = parseFFI csvDatas})
 ------------------------------------------------------------------------------
+----------------------------Stubs from codec-jvm-----------------------------
+type ClassName = Text
+type SuperClassName = Text
+type InterfaceName = Text
+type Info = Text
 
+parseClassFile :: Get (Map ClassName Info) -- defined in Codec JVM
+parseClassFile = undefined
 
+parseClassFileHeaders :: Get (ClassName,SuperClassName,[InterfaceName])
+parseClassFileHeaders = undefined
+
+-------------------------------------------------------------------------------
 data FFIState = FFIState { ffiFile :: Map BL.ByteString BL.ByteString}
 
 type Env = M.Map String String -- some Environment
@@ -80,12 +94,6 @@ type FFIMonad a = ReaderT Env (ExceptT String (StateT FFIState IO)) a
 
 runFFI :: Env -> FFIState -> FFIMonad a -> IO ((Either String a),FFIState)
 runFFI env st m = (runStateT (runExceptT (runReaderT m env)) st)
-
-type ClassName = Text
-type Info = Text
-
-parseClassFile :: Get (Map ClassName Info) -- defined in Codec JVM
-parseClassFile = undefined
 
 parsePackageName :: String -> Text
 parsePackageName globPattern =
@@ -107,6 +115,9 @@ ffiAction = do
   package <-  case M.lookup "package-name" env of
                 Nothing -> throwError "package name not provided"
                 Just packageName -> return $ parsePackageName packageName
-  -- filter those that are necesaary for this package
-  --let x = runGet parseClassFile fileContent
+  let x = map (\(a,b) -> (toFilePath a,b)) fileContent
+      y = filter (\(a,_) -> package == (pack a)) x
+      z = map (\(_,b) -> runGet parseClassFileHeaders b) y
+  -- y :: classes that I need to build
+  -- parseclassfile header check in ffi map which are already built
   return ()
