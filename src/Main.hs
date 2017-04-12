@@ -1,32 +1,23 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# Language PartialTypeSignatures #-}
 module Main where
 
 import Options.Applicative
-import FfiFileParser
-import Control.Monad.Trans.State
-import qualified Data.ByteString.Lazy as BL
+--import FfiFileParser (parseFFI)
+import Control.Monad.Except
+import Control.Monad.Reader
+import Control.Monad.State
 import Data.Map.Strict as M
-import Data.Functor.Identity
+import Data.Text
+import qualified Data.ByteString.Lazy as BL
+--import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
-{-
-eta-ffi -jar spark-2.0.1.jar org.apache.spark.* -package-prefix Spark
-Flags:
--classplath (same format as javac)
--ffi (accepts .ffi files which contain a 
-  - mapping from Java class/interface/enum to an Eta type, Eta module, and Eta package
--target (which Eta version to target)
--package-prefix
---global-single-file (Default) Means all methods for a given package should be in a single file called Methods.hs
---single-file [package]
---multi-file [package]
----global-multi-file (Manual) Means individual Eta module per Java class
-[input-package] support glob patterns (ex: java.util.*) (ex: java.util.**)
-Single * means just that package
-** means nested packages as well.
-
--}
+--import Codec.JVM.Parse
+import Data.Binary.Get
+import JAR (getFilesFromJar)
 
 data FFIMapping = FFIMapping [FilePath]
 
@@ -64,23 +55,56 @@ application = Application
               ( long "global-multi-file"
                 <> help "Individual Eta module per class" )
 
+readFiles :: [FilePath] -> IO BL.ByteString
+readFiles = fmap BL.concat . mapM BL.readFile
+------------------------------------------------------------------------------
 main :: IO ()
 main = app =<< execParser opts
   where
     opts = info (application <**> helper)
       (header "a test for optparse-applicative" )
 
-data FfiState = FfiState { ffiFile :: Map BL.ByteString BL.ByteString}
-
-type FfiMonad a = StateT FfiState IO a
-
-readFiles :: [FilePath] -> IO BL.ByteString
-readFiles = fmap BL.concat . mapM BL.readFile
-
 app :: Application -> IO ()
-app (Application {ffi = FFIMapping filepaths,..}) = do
-  csvDatas <- readFiles filepaths
-  evalStateT ffiAction (FfiState {ffiFile = parseFFI csvDatas})
+app = undefined
+-- app (Application {ffi = FFIMapping filepaths,..}) = do
+--   csvDatas <- readFiles filepaths
+--   evalStateT ffiAction (FfiState {ffiFile = parseFFI csvDatas})
+------------------------------------------------------------------------------
 
-ffiAction :: FfiMonad ()
-ffiAction = undefined
+
+data FFIState = FFIState { ffiFile :: Map BL.ByteString BL.ByteString}
+
+type Env = M.Map String String -- some Environment
+
+type FFIMonad a = ReaderT Env (ExceptT String (StateT FFIState IO)) a
+
+runFFI :: Env -> FFIState -> FFIMonad a -> IO ((Either String a),FFIState)
+runFFI env st m = (runStateT (runExceptT (runReaderT m env)) st)
+
+type ClassName = Text
+type Info = Text
+
+parseClassFile :: Get (Map ClassName Info) -- defined in Codec JVM
+parseClassFile = undefined
+
+parsePackageName :: String -> Text
+parsePackageName globPattern =
+  let textGlobPattern = pack globPattern
+  in case find (\c -> c == '*') textGlobPattern of
+       Just _ -> dropEnd 1 textGlobPattern
+       Nothing -> replace "/" "." textGlobPattern
+
+ffiAction :: FFIMonad ()
+ffiAction = do
+  env <- ask
+  --fileContent :: [(Path Rel File, ByteString)]
+  fileContent <- case M.lookup "filepath" env of
+                   Nothing -> throwError "Filepath not defined"
+                   Just path -> getFilesFromJar path
+  -- package :: Text
+  package <-  case M.lookup "package-name" env of
+                Nothing -> throwError "package name not provided"
+                Just packageName -> return $ parsePackageName packageName
+  -- filter those that are necesaary for this package
+  --let x = runGet parseClassFile fileContent
+  return ()

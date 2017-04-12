@@ -25,6 +25,7 @@ executable eta-ffi
                        containers >= 0.5.6.2,
                        directory >= 1.2.2.0,
                        exceptions >= 0.8.3,
+                       MissingH,
                        mtl,
                        optparse-applicative,
                        path,
