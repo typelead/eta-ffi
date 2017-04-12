@@ -104,20 +104,22 @@ parsePackageName globPattern =
        Just _ -> dropEnd 1 textGlobPattern
        Nothing -> replace x y textGlobPattern
 
+filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map BL.ByteString BL.ByteString -> [FilePath]
+filterFFItoGenerate infos ffiFile = undefined
+
 ffiAction :: FFIMonad ()
 ffiAction = do
   env <- ask
-  --fileContent :: [(Path Rel File, ByteString)]
+  -- fileContent :: [(Path Rel File, ByteString)]
   fileContent <- case M.lookup "filepath" env of
                    Nothing -> throwError "Filepath not defined"
                    Just path -> getFilesFromJar path
-  -- package :: Text
   package <-  case M.lookup "package-name" env of
                 Nothing -> throwError "package name not provided"
                 Just packageName -> return $ parsePackageName packageName
-  let x = map (\(a,b) -> (toFilePath a,b)) fileContent
-      y = filter (\(a,_) -> package == (pack a)) x
-      z = map (\(_,b) -> runGet parseClassFileHeaders b) y
-  -- y :: classes that I need to build
-  -- parseclassfile header check in ffi map which are already built
+  FFIState {ffiFile = file}  <- get
+  let f = map (\(a,b) -> (toFilePath a,b)) >>>
+          filter (\(a,_) -> package == (pack a)) >>>
+          map (\(a,b) -> (a,runGet parseClassFileHeaders b))
+      ffiToGenerate = filterFFItoGenerate (f fileContent) file
   return ()
