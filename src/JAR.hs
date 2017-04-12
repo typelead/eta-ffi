@@ -21,8 +21,6 @@ getFilesFromJar jarLocation =
             return (unEntrySelector es, contents)
 
 withUnsafePath :: (MonadCatch m, MonadThrow m) => FilePath -> (Path Rel File -> m [(Path Rel File, ByteString)]) -> (Path Abs File -> m [(Path Rel File, ByteString)]) -> m [(Path Rel File, ByteString)]
-withUnsafePath filepath action1 action2 = 
-  catch (parseRelFile filepath >>= action1) handler
-  where handler :: (MonadCatch m, MonadThrow m) => PathParseException -> m [(Path Rel File, ByteString)]
-        handler _ = undefined -- parseAbsFile filepath >>= action2
-
+withUnsafePath filepath action1 action2 =
+  catch (parseRelFile filepath >>= action1)
+        (\(_ :: PathParseException) -> parseAbsFile filepath >>= action2)
