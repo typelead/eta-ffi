@@ -90,9 +90,11 @@ parseClassFile = undefined
 parsePackageName :: String -> Text
 parsePackageName globPattern =
   let textGlobPattern = pack globPattern
+      x = pack "."
+      y = pack "/"
   in case find (\c -> c == '*') textGlobPattern of
        Just _ -> dropEnd 1 textGlobPattern
-       Nothing -> replace "/" "." textGlobPattern
+       Nothing -> replace x y textGlobPattern
 
 ffiAction :: FFIMonad ()
 ffiAction = do
