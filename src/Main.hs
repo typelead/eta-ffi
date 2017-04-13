@@ -14,8 +14,10 @@ import Data.Map.Strict as M hiding (map,filter)
 import Data.Text hiding (map,filter)
 import Data.Set as S hiding (map,filter)
 import Path
+import FFIDeclarations
+import qualified Data.Text.Internal.Lazy as TL
 import qualified Data.ByteString.Lazy as BL
-
+import qualified Data.Text.Format as TF
 --import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
@@ -109,6 +111,12 @@ filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] 
 filterFFItoGenerate infos ffiFile =
   (filter (\(_,(a,_,_)) -> (M.lookup a ffiFile) == Nothing) >>> map fst >>> S.fromList) infos
 
+generateDataDeclaration :: ClassName -> TL.Text
+generateDataDeclaration className =
+  let fqClassName = replace "/" "." className
+      className = snd $ breakOnEnd "." fqClassName
+  in TF.format dataDeclaration (fqClassName,className,className,className)
+
 ffiAction :: FFIMonad ()
 ffiAction = do
   env <- ask
@@ -130,4 +138,7 @@ ffiAction = do
            map snd >>>
            map (runGet parseClassFile)
       finalFFIMap = f2 fileContent
+
+      -- check flag for multiple file or single file
+        -- [Map Classname Info]
   return ()
