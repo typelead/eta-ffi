@@ -17,6 +17,8 @@ executable eta-ffi
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010
+  other-modules:       FfiFileParser
+                       JAR
   build-depends:       base >= 4.7 && < 5,
                        binary,
                        bytestring >= 0.10.6.0,

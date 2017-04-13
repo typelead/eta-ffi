@@ -5,7 +5,7 @@
 module Main where
 
 import Options.Applicative
---import FfiFileParser (parseFFI)
+import FfiFileParser
 import Control.Category hiding ((.))
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -86,7 +86,7 @@ parseClassFileHeaders :: Get (ClassName,SuperClassName,[InterfaceName])
 parseClassFileHeaders = undefined
 
 -------------------------------------------------------------------------------
-data FFIState = FFIState { ffiFile :: Map BL.ByteString BL.ByteString}
+data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)}
 
 type Env = M.Map String String -- some Environment
 
@@ -104,7 +104,7 @@ parsePackageName globPattern =
        Just _ -> dropEnd 1 textGlobPattern
        Nothing -> replace x y textGlobPattern
 
-filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map BL.ByteString BL.ByteString -> [FilePath]
+filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map JavaClassName (EtaPackage,EtaModule,EtaType) -> [FilePath]
 filterFFItoGenerate infos ffiFile = undefined
 
 ffiAction :: FFIMonad ()
