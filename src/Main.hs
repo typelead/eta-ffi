@@ -12,6 +12,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Map.Strict as M hiding (map,filter)
 import Data.Text hiding (map,filter)
+import Data.Set as S hiding (map,filter)
 import Path
 import qualified Data.ByteString.Lazy as BL
 
@@ -104,8 +105,9 @@ parsePackageName globPattern =
        Just _ -> dropEnd 1 textGlobPattern
        Nothing -> replace x y textGlobPattern
 
-filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map JavaClassName (EtaPackage,EtaModule,EtaType) -> [FilePath]
-filterFFItoGenerate infos ffiFile = undefined
+filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map JavaClassName (EtaPackage,EtaModule,EtaType) -> Set FilePath
+filterFFItoGenerate infos ffiFile =
+  (filter (\(_,(a,_,_)) -> (M.lookup a ffiFile) == Nothing) >>> map fst >>> S.fromList) infos
 
 ffiAction :: FFIMonad ()
 ffiAction = do
@@ -121,6 +123,11 @@ ffiAction = do
   let f = map (\(a,b) -> (toFilePath a,b)) >>>
           filter (\(a,_) -> package == (pack a)) >>>
           map (\(a,b) -> (a,runGet parseClassFileHeaders b))
-      -- ffiToGenerate :: [FilePath]
+      -- ffiToGenerate :: Set FilePath
       ffiToGenerate = filterFFItoGenerate (f fileContent) file
+      f2 = map (\(a,b) -> (toFilePath a,b)) >>>
+           filter (\(a,_) -> S.member a ffiToGenerate) >>>
+           map snd >>>
+           map (runGet parseClassFile)
+      finalFFIMap = f2 fileContent
   return ()
