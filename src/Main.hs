@@ -121,5 +121,6 @@ ffiAction = do
   let f = map (\(a,b) -> (toFilePath a,b)) >>>
           filter (\(a,_) -> package == (pack a)) >>>
           map (\(a,b) -> (a,runGet parseClassFileHeaders b))
+      -- ffiToGenerate :: [FilePath]
       ffiToGenerate = filterFFItoGenerate (f fileContent) file
   return ()

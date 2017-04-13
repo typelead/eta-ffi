@@ -13,14 +13,7 @@ type EtaModule = Text
 type EtaType = Text
 
 
---type FFIInfo = (BL.ByteString, BL.ByteString)
 type FFIInfo = (JavaClassName,EtaPackage,EtaModule,EtaType)
-
--- parseFFI :: BL.ByteString -> Map BL.ByteString BL.ByteString
--- parseFFI csvData =
---   case decode NoHeader csvData :: Either String (V.Vector FFIInfo) of
---     Left _ -> M.empty
---     Right v -> V.foldr (\ (x,y) m -> M.insert x y m) M.empty v
 
 parseFFI :: BL.ByteString -> Map JavaClassName (EtaPackage,EtaModule,EtaType)
 parseFFI csvData =
