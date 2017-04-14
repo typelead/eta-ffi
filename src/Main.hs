@@ -15,6 +15,7 @@ import Data.Text hiding (map,filter,foldr)
 import Data.Set as S hiding (map,filter,foldr)
 import Path
 import FFIDeclarations
+import qualified Data.List as L
 import qualified Data.Text.Internal.Lazy as TL
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text.Format as TF
@@ -115,13 +116,13 @@ singleTypeParameter tp = case tp of
 
 allTypeParameters :: [TypeParameter] -> (Text,Text) -- ("x y z", "x <: Foo, y <: Bar...")
 allTypeParameters alltps = let parsedParameters = map singleTypeParameter alltps
-                               typeVariables = foldr (\(a,_) y -> y <> a) "" parsedParameters
-                               typeBounds = foldr (\(_,b) y -> case b of
+                               typeVariables = L.foldl' (\y (a,_) -> y <> a) "" parsedParameters
+                               typeBounds = L.foldl' (\y (_,b) -> case b of
                                                       Just s -> y <> s <> ",") "" >>> dropEnd 1 $ parsedParameters
                            in (typeVariables,typeBounds)
 
 inherits :: [MReturnType] -> Text  -- things this class actually inherits
-inherits extendTypes = foldr (\ (JReferenceType (SimpleClassName x)) t -> t <> x <> ",") "" >>> dropEnd 1 $ extendTypes
+inherits extendTypes = L.foldl' (\ t (JReferenceType (SimpleClassName x)) -> t <> x <> ",") "" >>> dropEnd 1 $ extendTypes
 
 generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration)
 generateDataDeclaration className info =
