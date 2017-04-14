@@ -21,7 +21,8 @@ import qualified Data.Text.Format as TF
 --import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
---import Codec.JVM.Parse
+import Codec.JVM.Parse
+import Codec.JVM.Attr
 import Data.Binary.Get
 import JAR (getFilesFromJar)
 
@@ -75,20 +76,7 @@ app = undefined
 -- app (Application {ffi = FFIMapping filepaths,..}) = do
 --   csvDatas <- readFiles filepaths
 --   evalStateT ffiAction (FfiState {ffiFile = parseFFI csvDatas})
-------------------------------------------------------------------------------
-----------------------------Stubs from codec-jvm-----------------------------
-type ClassName = Text
-type SuperClassName = Text
-type InterfaceName = Text
-type Info = Text
 
-parseClassFile :: Get (ClassName,Info) -- defined in Codec JVM
-parseClassFile = undefined
-
-parseClassFileHeaders :: Get (ClassName,SuperClassName,[InterfaceName])
-parseClassFileHeaders = undefined
-
--------------------------------------------------------------------------------
 data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)}
 
 type Env = M.Map String String -- some Environment
@@ -107,9 +95,10 @@ parsePackageName globPattern =
        Just _ -> dropEnd 1 textGlobPattern
        Nothing -> replace x y textGlobPattern
 
+-- TODO ::Check inside [InterfaceName] too
 filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map JavaClassName (EtaPackage,EtaModule,EtaType) -> Set FilePath
 filterFFItoGenerate infos ffiFile =
-  (filter (\(_,(a,b,c)) -> ((M.lookup a ffiFile) == Nothing) &&
+  (filter (\(_,(a,b,_)) -> ((M.lookup a ffiFile) == Nothing) &&
                            ((M.lookup b ffiFile) == Nothing)) >>>
     map fst >>>
     S.fromList) infos
