@@ -10,9 +10,9 @@ import Control.Category hiding ((.))
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Map.Strict as M hiding (map,filter)
-import Data.Text hiding (map,filter)
-import Data.Set as S hiding (map,filter)
+import Data.Map.Strict as M hiding (map,filter,foldr)
+import Data.Text hiding (map,filter,foldr)
+import Data.Set as S hiding (map,filter,foldr)
 import Path
 import FFIDeclarations
 import qualified Data.Text.Internal.Lazy as TL
@@ -82,7 +82,7 @@ type SuperClassName = Text
 type InterfaceName = Text
 type Info = Text
 
-parseClassFile :: Get (Map ClassName Info) -- defined in Codec JVM
+parseClassFile :: Get (ClassName,Info) -- defined in Codec JVM
 parseClassFile = undefined
 
 parseClassFileHeaders :: Get (ClassName,SuperClassName,[InterfaceName])
@@ -109,13 +109,20 @@ parsePackageName globPattern =
 
 filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map JavaClassName (EtaPackage,EtaModule,EtaType) -> Set FilePath
 filterFFItoGenerate infos ffiFile =
-  (filter (\(_,(a,_,_)) -> (M.lookup a ffiFile) == Nothing) >>> map fst >>> S.fromList) infos
+  (filter (\(_,(a,b,c)) -> ((M.lookup a ffiFile) == Nothing) &&
+                           ((M.lookup b ffiFile) == Nothing)) >>>
+    map fst >>>
+    S.fromList) infos
 
-generateDataDeclaration :: ClassName -> TL.Text
-generateDataDeclaration className =
+generateDataDeclaration :: ClassName -> Info -> TL.Text
+generateDataDeclaration className info =
   let fqClassName = replace "/" "." className
       className = snd $ breakOnEnd "." fqClassName
   in TF.format dataDeclaration (fqClassName,className,className,className)
+-- 2nd and 4th argument should be generic
+
+codeGenerator :: ClassName -> Info -> TL.Text
+codeGenerator className classInfo = undefined
 
 ffiAction :: FFIMonad ()
 ffiAction = do
@@ -136,9 +143,15 @@ ffiAction = do
       f2 = map (\(a,b) -> (toFilePath a,b)) >>>
            filter (\(a,_) -> S.member a ffiToGenerate) >>>
            map snd >>>
-           map (runGet parseClassFile)
+           map (runGet parseClassFile) >>>
+           foldr (\ (a,b) m -> M.insert a b m) M.empty
       finalFFIMap = f2 fileContent
 
+
+  liftIO $ writeFile "abc" "abc"
+
       -- check flag for multiple file or single file
-        -- [Map Classname Info]
+      -- Map Classname Info
+     -- traverse the map or vector and run a function
+      -- function :: Classname -> Info -> TL.Text
   return ()
