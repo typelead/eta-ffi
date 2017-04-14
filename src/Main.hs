@@ -107,23 +107,21 @@ type DataDeclaration = TL.Text
 type SubtypeDeclaration = TL.Text
 
 --store the type bounds in global state
-quux :: TypeParameter -> (Text, Maybe Text)
-quux tp = case tp of
-            TPSimpleTypeVariable x -> (x,Nothing)
-            TPExtendsClass x (JReferenceType (SimpleClassName y)) -> (x, Just (append (append x " <: ") y))
-            TPSuperClass x (JReferenceType (SimpleClassName y)) -> (x, Just (append (append y " <: ") x))
+singleTypeParameter :: TypeParameter -> (Text, Maybe Text) -- (x,x<:Object)
+singleTypeParameter tp = case tp of
+                           TPSimpleTypeVariable x -> (x,Nothing)
+                           TPExtendsClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ x <> " <: " <> y)
+                           TPSuperClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ y <> " <: " <> x)
 
-foo :: [TypeParameter] -> (Text,Text)
-foo alltps = let parsedParameters = map quux alltps
-                 typeVariables = foldr (\(a,_) y -> append y a) "" parsedParameters
-                 typeBounds = foldr (\(_,b) y -> case b of
-                                                   Just s -> append y s) "" parsedParameters
-              in (typeVariables,typeBounds)
-f :: MReturnType -> Text -> Text
-f = undefined
+allTypeParameters :: [TypeParameter] -> (Text,Text) -- ("x y z", "x <: Foo, y <: Bar...")
+allTypeParameters alltps = let parsedParameters = map singleTypeParameter alltps
+                               typeVariables = foldr (\(a,_) y -> y <> a) "" parsedParameters
+                               typeBounds = foldr (\(_,b) y -> case b of
+                                                      Just s -> y <> s <> ",") "" >>> dropEnd 1 $ parsedParameters
+                           in (typeVariables,typeBounds)
 
-bar :: [MReturnType] -> Text  -- things this class actually inherits
-bar extendTypes = foldr f "" extendTypes
+inherits :: [MReturnType] -> Text  -- things this class actually inherits
+inherits extendTypes = foldr (\ (JReferenceType (SimpleClassName x)) t -> t <> x <> ",") "" >>> dropEnd 1 $ extendTypes
 
 generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration)
 generateDataDeclaration className info =
@@ -170,7 +168,8 @@ ffiAction = do
   -----------------------------------------------------------------
 
 
-  liftIO $ writeFile "abc" "abc"
+  liftIO $ writeFile "Types.hs" "abc"
+  liftIO $ writeFile "Methods.hs" "abc"
 
       -- check flag for multiple file or single file
       -- Map Classname Info
