@@ -103,11 +103,37 @@ filterFFItoGenerate infos ffiFile =
     map fst >>>
     S.fromList) infos
 
-generateDataDeclaration :: ClassName -> Info -> TL.Text
+type DataDeclaration = TL.Text
+type SubtypeDeclaration = TL.Text
+
+--store the type bounds in global state
+quux :: TypeParameter -> (Text, Maybe Text)
+quux tp = case tp of
+            TPSimpleTypeVariable x -> (x,Nothing)
+            TPExtendsClass x (JReferenceType (SimpleClassName y)) -> (x, Just (append (append x " <: ") y))
+            TPSuperClass x (JReferenceType (SimpleClassName y)) -> (x, Just (append (append y " <: ") x))
+
+foo :: [TypeParameter] -> (Text,Text)
+foo alltps = let parsedParameters = map quux alltps
+                 typeVariables = foldr (\(a,_) y -> append y a) "" parsedParameters
+                 typeBounds = foldr (\(_,b) y -> case b of
+                                                   Just s -> append y s) "" parsedParameters
+              in (typeVariables,typeBounds)
+f :: MReturnType -> Text -> Text
+f = undefined
+
+bar :: [MReturnType] -> Text  -- things this class actually inherits
+bar extendTypes = foldr f "" extendTypes
+
+generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration)
 generateDataDeclaration className info =
   let fqClassName = replace "/" "." className
       className = snd $ breakOnEnd "." fqClassName
-  in TF.format dataDeclaration (fqClassName,className,className,className)
+      ASignature (SigCSignature (CSignature x y)) = (classAttributes info) !! 0
+      -- x :: Maybe [TypeParameter]
+      -- y :: [Extends:: MReturnType]
+  in (TF.format dataDeclaration (fqClassName,className,className,className),
+      TF.format dataDeclaration (fqClassName,className,className,className))
 -- 2nd and 4th argument should be generic
 
 codeGenerator :: ClassName -> Info -> TL.Text
@@ -135,6 +161,13 @@ ffiAction = do
            map (runGet parseClassFile) >>>
            foldr (\ (a,b) m -> M.insert a b m) M.empty
       finalFFIMap = f2 fileContent
+
+  ------------------------------------------------------------------
+  --------------------Generating data declaration------------------
+
+  
+
+  -----------------------------------------------------------------
 
 
   liftIO $ writeFile "abc" "abc"
