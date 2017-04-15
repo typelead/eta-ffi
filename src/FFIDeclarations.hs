@@ -7,7 +7,7 @@ dataDeclaration :: TF.Format
 dataDeclaration = "data {-# CLASS {} #-} {} = {} (Object# {}) deriving Class"
 
 subtypeDeclaration :: TF.Format
-subtypeDeclaration = "type instance Inherits {} = '{}"
+subtypeDeclaration = "type instance Inherits {} = '[{}]"
 
 instanceMethodDeclaration :: TF.Format
 instanceMethodDeclaration = "foreign import java unsafe {} {} :: {}"

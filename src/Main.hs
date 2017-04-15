@@ -107,32 +107,39 @@ filterFFItoGenerate infos ffiFile =
 type DataDeclaration = TL.Text
 type SubtypeDeclaration = TL.Text
 
+getSimpleClassName :: Text -> Text
+getSimpleClassName = replace "/" "." >>> breakOnEnd "." >>> snd
+
 --store the type bounds in global state
 singleTypeParameter :: TypeParameter -> (Text, Maybe Text) -- (x,x<:Object)
 singleTypeParameter tp = case tp of
                            TPSimpleTypeVariable x -> (x,Nothing)
-                           TPExtendsClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ x <> " <: " <> y)
-                           TPSuperClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ y <> " <: " <> x)
+                           TPExtendsClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ x <> " <: " <> (getSimpleClassName y))
+                           TPSuperClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ (getSimpleClassName y) <> " <: " <> x)
 
 allTypeParameters :: [TypeParameter] -> (Text,Text) -- ("x y z", "x <: Foo, y <: Bar...")
 allTypeParameters alltps = let parsedParameters = map singleTypeParameter alltps
                                typeVariables = L.foldl' (\y (a,_) -> y <> a) "" parsedParameters
                                typeBounds = L.foldl' (\y (_,b) -> case b of
-                                                      Just s -> y <> s <> ",") "" >>> dropEnd 1 $ parsedParameters
+                                                                    Just s -> y <> s <> ","
+                                                                    Nothing -> y <> "") "" >>> dropEnd 1 $ parsedParameters
                            in (typeVariables,typeBounds)
 
 inherits :: [MReturnType] -> Text  -- things this class actually inherits
-inherits extendTypes = L.foldl' (\ t (JReferenceType (SimpleClassName x)) -> t <> x <> ",") "" >>> dropEnd 1 $ extendTypes
+inherits extendTypes = L.foldl' (\ t (JReferenceType (SimpleClassName x)) -> t <> (getSimpleClassName x) <> ",") "" >>> dropEnd 1 $ extendTypes
 
 generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration)
 generateDataDeclaration className info =
   let fqClassName = replace "/" "." className
-      className = snd $ breakOnEnd "." fqClassName
+      clsname = getSimpleClassName className
       ASignature (SigCSignature (CSignature x y)) = (classAttributes info) !! 0
       -- x :: Maybe [TypeParameter]
       -- y :: [Extends:: MReturnType]
-  in (TF.format dataDeclaration (fqClassName,className,className,className),
-      TF.format dataDeclaration (fqClassName,className,className,className))
+      genericClsName  = case x of
+                          Just a -> clsname <> " " <>(fst (allTypeParameters a))
+                          Nothing -> clsname
+  in (TF.format dataDeclaration (fqClassName,genericClsName,clsname,genericClsName),
+      TF.format subtypeDeclaration (genericClsName,(inherits y)))
 -- 2nd and 4th argument should be generic
 
 codeGenerator :: ClassName -> Info -> TL.Text
