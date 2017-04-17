@@ -24,6 +24,7 @@ import qualified Data.Text.Format as TF
 
 import Codec.JVM.Parse
 import Codec.JVM.Attr
+import Codec.JVM.Types hiding (Super)
 import Data.Binary.Get
 import JAR (getFilesFromJar)
 
@@ -78,7 +79,8 @@ app = undefined
 --   csvDatas <- readFiles filepaths
 --   evalStateT ffiAction (FfiState {ffiFile = parseFFI csvDatas})
 
-data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)}
+data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)
+                         , typeBounds :: Maybe TypeBounds}
 
 type Env = M.Map String String -- some Environment
 
@@ -106,44 +108,51 @@ filterFFItoGenerate infos ffiFile =
 
 type DataDeclaration = TL.Text
 type SubtypeDeclaration = TL.Text
+type TypeBounds = Text
 
 getSimpleClassName :: Text -> Text
 getSimpleClassName = replace "/" "." >>> breakOnEnd "." >>> snd
 
 --store the type bounds in global state
-singleTypeParameter :: TypeParameter -> (Text, Maybe Text) -- (x,x<:Object)
-singleTypeParameter tp = case tp of
-                           TPSimpleTypeVariable x -> (x,Nothing)
-                           TPExtendsClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ x <> " <: " <> (getSimpleClassName y))
-                           TPSuperClass x (JReferenceType (SimpleClassName y)) -> (x, Just $ (getSimpleClassName y) <> " <: " <> x)
+-- TODO: Only handles simple cases like class <E extends Foo> not class <E extends <Foo extends ..>>>
+singleTypeVariable :: TypeVariableDeclaration TypeVariable -> (Text, Text) -- (x,x<:Object)
+singleTypeVariable (TypeVariableDeclaration x y) = case (y !! 0) of
+                                                     NotBounded -> (x,(x <> " <: Object"))
+                                                     Extends (SimpleReferenceParameter (IClassName clsName)) -> (x,(x <> " <: " <> (getSimpleClassName clsName)))
+                                                     Super (SimpleReferenceParameter (IClassName clsName)) -> (x,((getSimpleClassName clsName) <> " <: " <> x))
 
-allTypeParameters :: [TypeParameter] -> (Text,Text) -- ("x y z", "x <: Foo, y <: Bar...")
-allTypeParameters alltps = let parsedParameters = map singleTypeParameter alltps
-                               typeVariables = L.foldl' (\y (a,_) -> y <> a) "" parsedParameters
-                               typeBounds = L.foldl' (\y (_,b) -> case b of
-                                                                    Just s -> y <> s <> ","
-                                                                    Nothing -> y <> "") "" >>> dropEnd 1 $ parsedParameters
+allTypeVariables :: TypeVariableDeclarations TypeVariable -> (Text,TypeBounds) -- ("x y z", "x <: Foo, y <: Bar...")
+allTypeVariables alltvs = let parsedParameters = map singleTypeVariable alltvs
+                              typeVariables = L.foldl' (\y (a,_) -> y <> a <> " ") "" >>> dropEnd 1 $ parsedParameters
+                              typeBounds = L.foldl' (\y (_,b) -> y <> b <> ",") "" >>> dropEnd 1 $ parsedParameters
                            in (typeVariables,typeBounds)
 
-inherits :: [MReturnType] -> Text  -- things this class actually inherits
-inherits extendTypes = L.foldl' (\ t (JReferenceType (SimpleClassName x)) -> t <> (getSimpleClassName x) <> ",") "" >>> dropEnd 1 $ extendTypes
+foldExtends :: Text -> ClassParameter TypeVariable -> Text
+foldExtends t (GenericReferenceParameter (IClassName x) _ _) = t <> (getSimpleClassName x) <> ","
+foldExtends t (SimpleReferenceParameter (IClassName x)) = t <> (getSimpleClassName x) <> ","
 
-generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration)
+inherits :: [ClassParameter TypeVariable] -> Text  -- things this class actually inherits
+inherits extendTypes = L.foldl' foldExtends "" >>> dropEnd 1 $ extendTypes
+
+generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration,Maybe TypeBounds)
 generateDataDeclaration className info =
   let fqClassName = replace "/" "." className
       clsname = getSimpleClassName className
-      ASignature (SigCSignature (CSignature x y)) = (classAttributes info) !! 0
-      -- x :: Maybe [TypeParameter]
-      -- y :: [Extends:: MReturnType]
-      genericClsName  = case x of
-                          Just a -> clsname <> " " <>(fst (allTypeParameters a))
-                          Nothing -> clsname
-  in (TF.format dataDeclaration (fqClassName,genericClsName,clsname,genericClsName),
-      TF.format subtypeDeclaration (genericClsName,(inherits y)))
+      ASignature (ClassSig (ClassSignature x y)) = (classAttributes info) !! 0
+      -- x :: [TypeVariableDeclaration a]
+      -- y :: [ClassParameter a]
+      (genericClsName,objectClassname,typeBounds)  = case x of
+                                                       [] -> (clsname,clsname,Nothing)
+                                                       _  -> let g = (allTypeVariables x)
+                                                                 y = clsname <> " " <> (fst g)
+                                                             in (y,"(" <> y <> ")",Just $ snd g)
+  in (TF.format dataDeclaration (fqClassName,genericClsName,clsname,objectClassname),
+      TF.format subtypeDeclaration (genericClsName,(inherits y)),
+      typeBounds)
 -- 2nd and 4th argument should be generic
 
-codeGenerator :: ClassName -> Info -> TL.Text
-codeGenerator className classInfo = undefined
+-- codeGenerator :: ClassName -> Info -> TL.Text
+-- codeGenerator className classInfo = undefined
 
 ffiAction :: FFIMonad ()
 ffiAction = do
@@ -164,12 +173,20 @@ ffiAction = do
       f2 = map (\(a,b) -> (toFilePath a,b)) >>>
            filter (\(a,_) -> S.member a ffiToGenerate) >>>
            map snd >>>
-           map (runGet parseClassFile) >>>
+           map (runGet parseClassFile) >>> -- [(ClassName,Info)] 
            foldr (\ (a,b) m -> M.insert a b m) M.empty
-      finalFFIMap = f2 fileContent
+      finalFFIMap = f2 fileContent -- (Map ClassName Info)
 
   ------------------------------------------------------------------
   --------------------Generating data declaration------------------
+
+  -- generateDataDeclaration ClassName Info -> (data decls,inherits, typebounds)
+  -- store typebounds in state
+
+  -----------------------------------------------------------------
+
+  --------------------Generate method declaration------------------
+
 
   
 
