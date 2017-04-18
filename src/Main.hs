@@ -212,14 +212,15 @@ generateMethodDeclaration MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi
   case (S.member Private accessFlags) of
        True -> Nothing
        False -> let (methodName,p,r,bounds) = formatMethodInfo file name (attributes !! 0) --TODO: Take care of attributes !! 0 in Parse.hs
+                    simpleCName = getSimpleClassName clsname
                     fqCName = (replace "/" "." clsname) <> "." <> methodName
                     returnType = case typeBounds of
                                    Just tb -> if bounds == ""
-                                                 then "(" <> tb <> ") => " <> p <> "Java " <> fqCName <> " " <> r
-                                                 else "(" <> tb <> "," <> bounds <> ") => " <> p <> "Java " <> fqCName <> " " <> r
+                                                 then "(" <> tb <> ") => " <> p <> "Java " <> simpleCName <> " " <> r
+                                                 else "(" <> tb <> "," <> bounds <> ") => " <> p <> "Java " <> simpleCName <> " " <> r
                                    Nothing -> if bounds == ""
-                                                 then p <> "Java " <> fqCName <> " " <> r
-                                                 else "(" <> bounds <> ") => " <> p <> "Java " <> fqCName <> " " <> r
+                                                 then p <> "Java " <> simpleCName <> " " <> r
+                                                 else "(" <> bounds <> ") => " <> p <> "Java " <> simpleCName <> " " <> r
                  in case (S.member Static accessFlags) of
                       True -> Just $ TF.format staticMethodDeclaration (fqCName, methodName, returnType)
                       False -> Just $ TF.format instanceMethodDeclaration (methodName, methodName, returnType)
