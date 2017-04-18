@@ -10,7 +10,7 @@ subtypeDeclaration :: TF.Format
 subtypeDeclaration = "type instance Inherits {} = '[{}]"
 
 instanceMethodDeclaration :: TF.Format
-instanceMethodDeclaration = "foreign import java unsafe {} {} :: {}"
+instanceMethodDeclaration = "foreign import java unsafe \"{}\" {} :: {}"
 
 instanceFieldDeclaration :: TF.Format
 instanceFieldDeclaration = "foreign import java unsafe \"@field {}\" {}  :: {}"

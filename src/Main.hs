@@ -229,7 +229,7 @@ quux m (PrimitiveParameter x) = case x of
 
 -- foreign import java unsafe "canExecute" canExecute1 :: Java File Bool
 -- foreign import java unsafe toString :: (a <: Object) => a -> String
-bar :: FFIFile -> UName -> Attr -> (Text,Text,Text)
+bar :: FFIFile -> UName -> Attr -> (Text,Text,Text,Text)
 bar m (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) =
   let params = map (quux m) x
       formattedParams = L.foldl' (\s (p,_) -> s <> " ->") "" params
@@ -238,18 +238,27 @@ bar m (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) =
                                Just a -> (quux m) a
                                Nothing -> ("()","")
       --TODO: Store the new type bounds in state
-   in (formattedParams,returnType,tbounds)
+   in (t,formattedParams,returnType,tbounds)
 -- x :: [MethodParameter TypeVariable] => [Parameter a]
 -- y :: MethodReturn TypeVariable => Maybe (Parameter a) 
 
 -- foreign import java unsafe "@static java.io.File.createTempFile" createTempFile  :: String -> String -> Java a File
-foo :: MethodInfo -> Maybe TypeBounds -> Maybe Integer
-foo MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor,mi_attributes=attributes} typeBounds =
+foo :: MethodInfo -> Maybe TypeBounds -> ClassName -> FFIFile -> Maybe TL.Text
+foo MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor,mi_attributes=attributes} typeBounds clsname file=
   case (S.member Private accessFlags) of
        True -> Nothing
-       False -> case (S.member Static accessFlags) of
-                  True -> Just 5
-                  False -> Just 5
+       False -> let (methodName,p,r,bounds) = bar file name (attributes !! 0) --TODO: Take care of attributes !! 0 in Parse.hs
+                    fqCName = (replace "/" "." clsname) <> "." <> methodName
+                    returnType = case typeBounds of
+                                   Just tb -> if bounds == ""
+                                                 then "(" <> tb <> ") => " <> p <> "Java " <> fqCName <> " " <> r
+                                                 else "(" <> tb <> "," <> bounds <> ") => " <> p <> "Java " <> fqCName <> " " <> r
+                                   Nothing -> if bounds == ""
+                                                 then p <> "Java " <> fqCName <> " " <> r
+                                                 else "(" <> bounds <> ") => " <> p <> "Java " <> fqCName <> " " <> r
+                 in case (S.member Static accessFlags) of
+                      True -> Just $ TF.format staticMethodDeclaration (fqCName, methodName, returnType)
+                      False -> Just $ TF.format instanceMethodDeclaration (methodName, methodName, returnType)
 
 
 generateMethodDeclaration :: ClassName -> Info -> Maybe TypeBounds -> Text
