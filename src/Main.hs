@@ -116,10 +116,12 @@ getSimpleClassName = replace "/" "." >>> breakOnEnd "." >>> snd
 --store the type bounds in global state
 -- TODO: Only handles simple cases like class <E extends Foo> not class <E extends <Foo extends ..>>>
 singleTypeVariable :: TypeVariableDeclaration TypeVariable -> (Text, Text) -- (x,x<:Object)
-singleTypeVariable (TypeVariableDeclaration x y) = case (y !! 0) of
-                                                     NotBounded -> (x,(x <> " <: Object"))
-                                                     Extends (SimpleReferenceParameter (IClassName clsName)) -> (x,(x <> " <: " <> (getSimpleClassName clsName)))
-                                                     Super (SimpleReferenceParameter (IClassName clsName)) -> (x,((getSimpleClassName clsName) <> " <: " <> x))
+singleTypeVariable (TypeVariableDeclaration m y) =
+  let x = toLower m -- convert "T"" to "t"" in Eta side
+  in case (y !! 0) of
+       NotBounded -> (x,(x <> " <: Object"))
+       Extends (SimpleReferenceParameter (IClassName clsName)) -> (x,(x <> " <: " <> (getSimpleClassName clsName)))
+       Super (SimpleReferenceParameter (IClassName clsName)) -> (x,((getSimpleClassName clsName) <> " <: " <> x))
 
 allTypeVariables :: TypeVariableDeclarations TypeVariable -> (Text,TypeBounds) -- ("x y z", "x <: Foo, y <: Bar...")
 allTypeVariables alltvs = let parsedParameters = map singleTypeVariable alltvs
@@ -149,11 +151,91 @@ generateDataDeclaration className info =
   in (TF.format dataDeclaration (fqClassName,genericClsName,clsname,objectClassname),
       TF.format subtypeDeclaration (genericClsName,(inherits y)),
       typeBounds)
--- 2nd and 4th argument should be generic
 
--- codeGenerator :: ClassName -> Info -> TL.Text
--- codeGenerator className classInfo = undefined
+-------------------------------------------------------------------------------------------------------------------
+--------------------------Method Declarations-------------------------------------------------------------------
+-- method - import public and protected
+{-
+data MethodInfo = MethodInfo
+  { mi_accessFlags :: Set AccessFlag
+  , mi_name :: UName
+  , mi_descriptor :: Desc
+  , mi_attributes :: [Attr]}
+  deriving Show
 
+data Info = Info
+  {  interfaces  :: [InterfaceName]
+   , fieldInfos  :: [FieldInfo]
+   , methodInfos :: [MethodInfo]
+   , classAttributes :: [Attr]}
+   deriving Show
+
+-}
+{-
+data ReferenceParameter a
+  = -- | ClassTypeSignature
+    GenericReferenceParameter
+      ObjectType                     -- ^ PackageSpecifier & SimpleClassTypeSignature
+      [TypeParameter a]              -- ^ SimpleClassTypeSignature
+      [ReferenceParameter a]         -- ^ ClassTypeSignatureSuffix
+    -- | Non Generic ClassTypeSignature
+  | SimpleReferenceParameter ObjectType -- Ljava/lang/String;
+    -- | TypeVariableSignature
+  | VariableReferenceParameter a
+    -- | ArrayTypeSignature
+  | ArrayReferenceParameter    (Parameter a)
+
+
+-}
+
+quux :: Parameter TypeVariable -> Text
+quux (ReferenceParameter (GenericReferenceParameter x y z)) = undefined
+quux (ReferenceParameter (SimpleReferenceParameter x)) = undefined
+quux (ReferenceParameter (VariableReferenceParameter x)) = undefined
+quux (PrimitiveParameter x) = case x of
+                                JByte   -> "Byte"
+                                JChar   -> "JChar"
+                                JDouble -> "Double"
+                                JFloat  -> "Float"
+                                JInt    -> "Int"
+                                JLong   -> "Int64"
+                                JShort  -> "Short"
+                                JBool   -> "Bool"
+
+-- foreign import java unsafe "canExecute" canExecute1 :: Java File Bool
+-- foreign import java unsafe toString :: (a <: Object) => a -> String
+bar :: UName -> Attr -> Maybe TypeBounds -> TL.Text
+bar (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) typeBounds = undefined
+-- x :: [MethodParameter TypeVariable] => [Parameter a]
+-- y :: MethodReturn TypeVariable => Maybe (Parameter a) 
+
+-- foreign import java unsafe "@static java.io.File.createTempFile" createTempFile  :: String -> String -> Java a File
+foo :: MethodInfo -> Maybe TypeBounds -> Maybe Integer
+foo MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor,mi_attributes=attributes} typeBounds =
+  case (S.member Private accessFlags) of
+       True -> Nothing
+       False -> case (S.member Static accessFlags) of
+                  True -> Just 5
+                  False -> Just 5
+
+
+generateMethodDeclaration :: ClassName -> Info -> Maybe TypeBounds -> Text
+generateMethodDeclaration className info typeBounds =
+  let mInfos = methodInfos info
+    in  "hello"
+------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------
+---------------------------------------Field declarations-------------------------------------------------------
+-- field - import public
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------
 ffiAction :: FFIMonad ()
 ffiAction = do
   env <- ask
@@ -191,6 +273,16 @@ ffiAction = do
   
 
   -----------------------------------------------------------------
+
+  --------------------Generate field declaration------------------
+
+
+  
+
+  -----------------------------------------------------------------
+        -- reset the state
+  -----------------------------------------------------------------
+
 
 
   liftIO $ writeFile "Types.hs" "abc"
