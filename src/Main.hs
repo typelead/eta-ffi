@@ -155,69 +155,35 @@ generateDataDeclaration className info =
 -- TODO: add the generated type to ffi map
 -------------------------------------------------------------------------------------------------------------------
 --------------------------Method Declarations-------------------------------------------------------------------
--- method - import public and protected
-{-
-data MethodInfo = MethodInfo
-  { mi_accessFlags :: Set AccessFlag
-  , mi_name :: UName
-  , mi_descriptor :: Desc
-  , mi_attributes :: [Attr]}
-  deriving Show
-
-data Info = Info
-  {  interfaces  :: [InterfaceName]
-   , fieldInfos  :: [FieldInfo]
-   , methodInfos :: [MethodInfo]
-   , classAttributes :: [Attr]}
-   deriving Show
-
--}
-{-
-data ReferenceParameter a
-  = -- | ClassTypeSignature
-    GenericReferenceParameter
-      ObjectType                     -- ^ PackageSpecifier & SimpleClassTypeSignature
-      [TypeParameter a]              -- ^ SimpleClassTypeSignature
-      [ReferenceParameter a]         -- ^ ClassTypeSignatureSuffix
-    -- | Non Generic ClassTypeSignature
-  | SimpleReferenceParameter ObjectType -- Ljava/lang/String;
-    -- | TypeVariableSignature
-  | VariableReferenceParameter a
-    -- | ArrayTypeSignature
-  | ArrayReferenceParameter    (Parameter a)
-
-
--}
 
 type FFIFile = Map JavaClassName (EtaPackage,EtaModule,EtaType)
 type NewTypeBounds = Text
 
-baz :: TypeParameter TypeVariable -> (Text,Maybe NewTypeBounds) -- (t,Just )
+formatTypeParameter :: TypeParameter TypeVariable -> (Text,Maybe NewTypeBounds) -- (t,Just )
  -- | Their bounds are defined at the data declaration level
-baz (SimpleTypeParameter t _) = (toLower t,Nothing)
+formatTypeParameter (SimpleTypeParameter t _) = (toLower t,Nothing)
  -- | Their bounds are not defined
-baz (WildcardTypeParameter (Extends x)) = undefined
-baz (WildcardTypeParameter (Super x)) = undefined
-baz (WildcardTypeParameter NotBounded) = ("", Just $ "" <> " <: Object")
+formatTypeParameter (WildcardTypeParameter (Extends x)) = undefined
+formatTypeParameter (WildcardTypeParameter (Super x)) = undefined
+formatTypeParameter (WildcardTypeParameter NotBounded) = ("", Just $ "" <> " <: Object")
 
-quux :: FFIFile -> Parameter TypeVariable -> (Text, NewTypeBounds)
-quux m (ReferenceParameter (GenericReferenceParameter (IClassName clsName) y _)) =
-  let x = map baz y -- :: [(t, Maybe "t <: A")]
+formatParameters :: FFIFile -> Parameter TypeVariable -> (Text, NewTypeBounds)
+formatParameters m (ReferenceParameter (GenericReferenceParameter (IClassName clsName) y _)) =
+  let x = map formatTypeParameter y -- :: [(t, Maybe "t <: A")]
       className = case M.lookup clsName m of
                     Nothing -> getSimpleClassName clsName
                     Just (_,_,z) -> z
       typeVariables = L.foldl' (\a (b,_) -> a <> b <> ",") "" >>> dropEnd 1 $ x
-      -- if all are Nothings  send Nothing else filter the justs and append
       typeBounds = L.foldl' (\a (_,b) -> case b of
                                            Just c -> a <> c <> ","
                                            Nothing -> a) "" >>> dropEnd 1 $ x
       final = className <> " " <> typeVariables
   in (final, typeBounds)
-quux m (ReferenceParameter (SimpleReferenceParameter (IClassName clsName))) = case M.lookup clsName m of
+formatParameters m (ReferenceParameter (SimpleReferenceParameter (IClassName clsName))) = case M.lookup clsName m of
                                                                                 Nothing -> (getSimpleClassName clsName, "") -- for a Java lang ref type
                                                                                 Just (_,_,x) -> (x, "")
-quux m (ReferenceParameter (VariableReferenceParameter x)) = (toLower x, "")
-quux m (PrimitiveParameter x) = case x of
+formatParameters m (ReferenceParameter (VariableReferenceParameter x)) = (toLower x, "")
+formatParameters m (PrimitiveParameter x) = case x of
                                   JByte   -> ("Byte", "")
                                   JChar   -> ("JChar", "")
                                   JDouble -> ("Double", "")
@@ -227,27 +193,25 @@ quux m (PrimitiveParameter x) = case x of
                                   JShort  -> ("Short", "")
                                   JBool   -> ("Bool", "")
 
--- foreign import java unsafe "canExecute" canExecute1 :: Java File Bool
--- foreign import java unsafe toString :: (a <: Object) => a -> String
-bar :: FFIFile -> UName -> Attr -> (Text,Text,Text,Text)
-bar m (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) =
-  let params = map (quux m) x
+
+formatMethodInfo :: FFIFile -> UName -> Attr -> (Text,Text,Text,Text)
+formatMethodInfo m (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) =
+  let params = map (formatParameters m) x
       formattedParams = L.foldl' (\s (p,_) -> s <> " ->") "" params
       --TODO: Store the new type bounds in state
       (returnType,tbounds) = case y of
-                               Just a -> (quux m) a
+                               Just a -> (formatParameters m) a
                                Nothing -> ("()","")
       --TODO: Store the new type bounds in state
    in (t,formattedParams,returnType,tbounds)
 -- x :: [MethodParameter TypeVariable] => [Parameter a]
 -- y :: MethodReturn TypeVariable => Maybe (Parameter a) 
 
--- foreign import java unsafe "@static java.io.File.createTempFile" createTempFile  :: String -> String -> Java a File
-foo :: MethodInfo -> Maybe TypeBounds -> ClassName -> FFIFile -> Maybe TL.Text
-foo MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor,mi_attributes=attributes} typeBounds clsname file=
+generateMethodDeclaration :: MethodInfo -> Maybe TypeBounds -> ClassName -> FFIFile -> Maybe TL.Text
+generateMethodDeclaration MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor,mi_attributes=attributes} typeBounds clsname file=
   case (S.member Private accessFlags) of
        True -> Nothing
-       False -> let (methodName,p,r,bounds) = bar file name (attributes !! 0) --TODO: Take care of attributes !! 0 in Parse.hs
+       False -> let (methodName,p,r,bounds) = formatMethodInfo file name (attributes !! 0) --TODO: Take care of attributes !! 0 in Parse.hs
                     fqCName = (replace "/" "." clsname) <> "." <> methodName
                     returnType = case typeBounds of
                                    Just tb -> if bounds == ""
@@ -259,14 +223,6 @@ foo MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor
                  in case (S.member Static accessFlags) of
                       True -> Just $ TF.format staticMethodDeclaration (fqCName, methodName, returnType)
                       False -> Just $ TF.format instanceMethodDeclaration (methodName, methodName, returnType)
-
-
-generateMethodDeclaration :: ClassName -> Info -> Maybe TypeBounds -> Text
-generateMethodDeclaration className info typeBounds =
-  let mInfos = methodInfos info
-    in  "hello"
-------------------------------------------------------------------------------------------------------------
-
 
 ------------------------------------------------------------------------------------------------------------------
 ---------------------------------------Field declarations-------------------------------------------------------
