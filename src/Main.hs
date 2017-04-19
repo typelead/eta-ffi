@@ -22,6 +22,7 @@ import qualified Data.Text.Format as TF
 --import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
+import Codec.JVM.Field
 import Codec.JVM.Parse
 import Codec.JVM.Attr
 import Codec.JVM.Types hiding (Super)
@@ -167,7 +168,7 @@ formatTypeParameter (WildcardTypeParameter (Extends x)) = undefined
 formatTypeParameter (WildcardTypeParameter (Super x)) = undefined
 formatTypeParameter (WildcardTypeParameter NotBounded) = ("", Just $ "" <> " <: Object")
 
-formatParameters :: FFIFile -> Parameter TypeVariable -> (Text, NewTypeBounds)
+formatParameters :: FFIFile -> Parameter TypeVariable -> (Text, NewTypeBounds)   -- ("List t", t <: Object)
 formatParameters m (ReferenceParameter (GenericReferenceParameter (IClassName clsName) y _)) =
   let x = map formatTypeParameter y -- :: [(t, Maybe "t <: A")]
       className = case M.lookup clsName m of
@@ -197,10 +198,10 @@ formatParameters m (PrimitiveParameter x) = case x of
 formatMethodInfo :: FFIFile -> UName -> Attr -> (Text,Text,Text,Text)
 formatMethodInfo m (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) =
   let params = map (formatParameters m) x
-      formattedParams = L.foldl' (\s (p,_) -> s <> " ->") "" params
+      formattedParams = L.foldl' (\s (p,_) -> s <> p <> " ->") "" params
       --TODO: Store the new type bounds in state
       (returnType,tbounds) = case y of
-                               Just a -> (formatParameters m) a
+                               Just a -> formatParameters m a
                                Nothing -> ("()","")
       --TODO: Store the new type bounds in state
    in (t,formattedParams,returnType,tbounds)
@@ -227,13 +228,19 @@ generateMethodDeclaration MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi
 
 ------------------------------------------------------------------------------------------------------------------
 ---------------------------------------Field declarations-------------------------------------------------------
--- field - import public
 
-
-
-
-
-
+generateStaticFieldDeclaration :: FieldInfo -> ClassName -> FFIFile -> Maybe TL.Text
+generateStaticFieldDeclaration FieldInfo {accessFlags=faccessFlags,name=(UName fname),descriptor=fdescriptor,attributes=fattributes} clsname file =
+  let annotatedFieldName = (replace "/" "." clsname) <> "." <> fname
+      fieldName = "get" <> fname
+      ASignature (FieldSig  (FieldSignature x)) = fattributes !! 0 -- x:: FieldParameter TypeVariable => ReferenceParameter TypeVariable 
+      (t, tb) = formatParameters file (ReferenceParameter x)
+      returnType = if tb == ""
+                      then "Java a " <> t
+                      else "(" <> tb <> ") => Java a (" <> t <> ")"
+  in case (S.member Public faccessFlags) && (S.member Static faccessFlags) && (S.member Final faccessFlags) of
+       False -> Nothing
+       True -> Just $ TF.format staticFieldDeclaration (annotatedFieldName,fieldName,returnType)
 -------------------------------------------------------------------------------------------------------------------
 ffiAction :: FFIMonad ()
 ffiAction = do
