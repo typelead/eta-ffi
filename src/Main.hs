@@ -22,6 +22,7 @@ import qualified Data.Text.Format as TF
 --import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
+import Data.Graph
 import Codec.JVM.Field
 import Codec.JVM.Parse
 import Codec.JVM.Attr
@@ -257,13 +258,22 @@ ffiAction = do
           filter (\(a,_) -> package == (pack a)) >>>
           map (\(a,b) -> (a,runGet parseClassFileHeaders b))
       -- ffiToGenerate :: Set FilePath
-      ffiToGenerate = filterFFItoGenerate (f fileContent) file
+      -- parentInfo :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))]
+      parentInfo = f fileContent
+      ffiToGenerate = filterFFItoGenerate parentInfo file
       f2 = map (\(a,b) -> (toFilePath a,b)) >>>
            filter (\(a,_) -> S.member a ffiToGenerate) >>>
            map snd >>>
            map (runGet parseClassFile) >>> -- [(ClassName,Info)] 
            foldr (\ (a,b) m -> M.insert a b m) M.empty
       finalFFIMap = f2 fileContent -- (Map ClassName Info)
+
+      tuples = map (\ (_, (a,b,c)) -> (show a, a ,b:c)) parentInfo
+      (g,_)  = graphFromEdges' tuples
+      sortedClasses = topSort g  -- [ClassName]
+
+
+      {--}
 
   ------------------------------------------------------------------
   --------------------Generating data declaration------------------
