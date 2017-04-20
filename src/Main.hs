@@ -80,6 +80,7 @@ main = app =<< execParser opts
 app :: Application -> IO ((Either String ()),FFIState)
 app (Application {ffi = FFIMapping filepaths,..}) = do
   csvDatas <- readFiles filepaths
+  -- filepaths,package name etc comes inside the map
   runFFI M.empty (FFIState {ffiFile = parseFFI csvDatas}) ffiAction
 
 data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)
