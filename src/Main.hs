@@ -277,38 +277,19 @@ ffiAction = do
       sortedClasses = map vertexFunc >>> map (\(_, key, _) -> key ) $ sortedVertices -- [ClassName]
 
 
-      bar c = let info = fromJust $ M.lookup c finalFFIMap
-                  (dataDecls, styDecls, tb) = generateDataDeclaration c info
-                  -- put data decls in state
-              in (dataDecls, styDecls,
-                  map (generateMethodDeclaration tb c file) (methodInfos info),
-                  map (generateStaticFieldDeclaration c file) (fieldInfos info))
+      emitText c = let info = fromJust $ M.lookup c finalFFIMap
+                       (dataDecls, styDecls, tb) = generateDataDeclaration c info
+                       -- put data decls in state
+                    in (dataDecls, styDecls,
+                        map (generateMethodDeclaration tb c file) (methodInfos info),
+                        map (generateStaticFieldDeclaration c file) (fieldInfos info))
 
       -- foo :: [(DataDeclaration,SubtypeDeclaration,[Maybe TL.Text],[Maybe TL.Text])]
-      foo = map bar sortedClasses
+      allInfo = map emitText sortedClasses
 
-      baz = L.foldl' (\s (dd,sty,_,_) -> s <> "\n" <> dd <> "\n" <> sty) "" foo
-      quux = L.foldl' (\s (_,_,minfos,finfos) -> s <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes minfos)) <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes finfos))) "" foo
-
-  --------------------Generating data declaration------------------
-  -- generateDataDeclaration ClassName Info -> (data decls,inherits, typebounds)
-  -- store typebounds in state
-  -- store data decls in state
-  -----------------------------------------------------------------
-
-  --------------------Generate method declaration------------------
-
-  -----------------------------------------------------------------
-
-  --------------------Generate field declaration------------------
-  -----------------------------------------------------------------
-        -- reset the state
-  -----------------------------------------------------------------
+      dataInfo = L.foldl' (\s (dd,sty,_,_) -> s <> "\n" <> dd <> "\n" <> sty) "" allInfo
+      methodInfo = L.foldl' (\s (_,_,minfos,finfos) -> s <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes minfos)) <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes finfos))) "" allInfo
 
 
-
-  liftIO $ TIO.appendFile "Types.hs" $ TL.toStrict baz
-  liftIO $ TIO.appendFile "Methods.hs" quux
-
-      -- check flag for multiple file or single file
-
+  liftIO $ TIO.appendFile "Types.hs" $ TL.toStrict dataInfo
+  liftIO $ TIO.appendFile "Methods.hs" methodInfo
