@@ -12,17 +12,19 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Map.Strict as M hiding (map,filter,foldr)
 import Data.Text hiding (map,filter,foldr)
+import Data.Text.IO as TIO
 import Data.Set as S hiding (map,filter,foldr)
 import Path
 import FFIDeclarations
 import qualified Data.List as L
-import qualified Data.Text.Internal.Lazy as TL
+import qualified Data.Text.Lazy as TL
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text.Format as TF
 --import Data.Functor.Identity
 --import Data.Semigroup ((<>))
 
 import Data.Graph
+import Data.Maybe (fromJust, catMaybes)
 import Codec.JVM.Field
 import Codec.JVM.Parse
 import Codec.JVM.Attr
@@ -209,8 +211,8 @@ formatMethodInfo m (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) 
 -- x :: [MethodParameter TypeVariable] => [Parameter a]
 -- y :: MethodReturn TypeVariable => Maybe (Parameter a) 
 
-generateMethodDeclaration :: MethodInfo -> Maybe TypeBounds -> ClassName -> FFIFile -> Maybe TL.Text
-generateMethodDeclaration MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor,mi_attributes=attributes} typeBounds clsname file=
+generateMethodDeclaration :: Maybe TypeBounds -> ClassName -> FFIFile -> MethodInfo -> Maybe TL.Text
+generateMethodDeclaration typeBounds clsname file MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi_descriptor=descriptor,mi_attributes=attributes} =
   case (S.member Private accessFlags) of
        True -> Nothing
        False -> let (methodName,p,r,bounds) = formatMethodInfo file name (attributes !! 0) --TODO: Take care of attributes !! 0 in Parse.hs
@@ -230,8 +232,8 @@ generateMethodDeclaration MethodInfo {mi_accessFlags=accessFlags,mi_name=name,mi
 ------------------------------------------------------------------------------------------------------------------
 ---------------------------------------Field declarations-------------------------------------------------------
 
-generateStaticFieldDeclaration :: FieldInfo -> ClassName -> FFIFile -> Maybe TL.Text
-generateStaticFieldDeclaration FieldInfo {accessFlags=faccessFlags,name=(UName fname),descriptor=fdescriptor,attributes=fattributes} clsname file =
+generateStaticFieldDeclaration :: ClassName -> FFIFile -> FieldInfo -> Maybe TL.Text
+generateStaticFieldDeclaration clsname file FieldInfo {accessFlags=faccessFlags,name=(UName fname),descriptor=fdescriptor,attributes=fattributes} =
   let annotatedFieldName = (replace "/" "." clsname) <> "." <> fname
       fieldName = "get" <> fname
       ASignature (FieldSig  (FieldSignature x)) = fattributes !! 0 -- x:: FieldParameter TypeVariable => ReferenceParameter TypeVariable 
@@ -268,45 +270,45 @@ ffiAction = do
            foldr (\ (a,b) m -> M.insert a b m) M.empty
       finalFFIMap = f2 fileContent -- (Map ClassName Info)
 
-      tuples = map (\ (_, (a,b,c)) -> (show a, a ,b:c)) parentInfo
-      (g,_)  = graphFromEdges' tuples
-      sortedClasses = topSort g  -- [ClassName]
+
+      tuples = map (\ (_, (a,b,c)) -> (a, a ,b:c)) parentInfo
+      (g,vertexFunc)  = graphFromEdges' tuples
+      sortedVertices = topSort g
+      sortedClasses = map vertexFunc >>> map (\(_, key, _) -> key ) $ sortedVertices -- [ClassName]
 
 
-      {--}
+      bar c = let info = fromJust $ M.lookup c finalFFIMap
+                  (dataDecls, styDecls, tb) = generateDataDeclaration c info
+                  -- put data decls in state
+              in (dataDecls, styDecls,
+                  map (generateMethodDeclaration tb c file) (methodInfos info),
+                  map (generateStaticFieldDeclaration c file) (fieldInfos info))
 
-  ------------------------------------------------------------------
+      -- foo :: [(DataDeclaration,SubtypeDeclaration,[Maybe TL.Text],[Maybe TL.Text])]
+      foo = map bar sortedClasses
+
+      baz = L.foldl' (\s (dd,sty,_,_) -> s <> "\n" <> dd <> "\n" <> sty) "" foo
+      quux = L.foldl' (\s (_,_,minfos,finfos) -> s <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes minfos)) <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes finfos))) "" foo
+
   --------------------Generating data declaration------------------
-
   -- generateDataDeclaration ClassName Info -> (data decls,inherits, typebounds)
   -- store typebounds in state
   -- store data decls in state
-
   -----------------------------------------------------------------
 
   --------------------Generate method declaration------------------
 
-
-  
-
   -----------------------------------------------------------------
 
   --------------------Generate field declaration------------------
-
-
-  
-
   -----------------------------------------------------------------
         -- reset the state
   -----------------------------------------------------------------
 
 
 
-  liftIO $ writeFile "Types.hs" "abc"
-  liftIO $ writeFile "Methods.hs" "abc"
+  liftIO $ TIO.appendFile "Types.hs" $ TL.toStrict baz
+  liftIO $ TIO.appendFile "Methods.hs" quux
 
       -- check flag for multiple file or single file
-      -- Map Classname Info
-     -- traverse the map or vector and run a function
-      -- function :: Classname -> Info -> TL.Text
-  return ()
+
