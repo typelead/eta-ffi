@@ -71,17 +71,16 @@ application = Application
 readFiles :: [FilePath] -> IO BL.ByteString
 readFiles = fmap BL.concat . mapM BL.readFile
 ------------------------------------------------------------------------------
-main :: IO ()
+main :: IO ((Either String ()),FFIState)
 main = app =<< execParser opts
   where
     opts = info (application <**> helper)
       (header "a test for optparse-applicative" )
 
-app :: Application -> IO ()
-app = undefined
--- app (Application {ffi = FFIMapping filepaths,..}) = do
---   csvDatas <- readFiles filepaths
---   evalStateT ffiAction (FfiState {ffiFile = parseFFI csvDatas})
+app :: Application -> IO ((Either String ()),FFIState)
+app (Application {ffi = FFIMapping filepaths,..}) = do
+  csvDatas <- readFiles filepaths
+  runFFI M.empty (FFIState {ffiFile = parseFFI csvDatas}) ffiAction
 
 data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)
                          , typeBounds :: Maybe TypeBounds}
