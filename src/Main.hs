@@ -2,6 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# Language PartialTypeSignatures #-}
+
 module Main where
 
 import Control.Category hiding ((.))
@@ -90,7 +91,9 @@ app (Application {ffi = FFIMapping filepaths, classpath = cp , packageName = pn,
   let environment = M.fromList [("classpath",cp), ("package-name",pn), ("package-prefix", prefix)]
   runFFI environment (FFIState {ffiFile = parseFFI csvDatas}) ffiAction
 
-data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)}
+type FFIFile = Map JavaClassName (EtaPackage,EtaModule,EtaType)
+
+data FFIState = FFIState { ffiFile :: FFIFile}
 
 type Env = M.Map String String -- Environment
 
@@ -109,7 +112,7 @@ parsePackageName globPattern =
        Nothing -> replace x y textGlobPattern
 
 -- TODO ::Check inside [InterfaceName] too
-filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> Map JavaClassName (EtaPackage,EtaModule,EtaType) -> Set FilePath
+filterFFItoGenerate :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))] -> FFIFile -> Set FilePath
 filterFFItoGenerate infos ffiFile =
   (filter (\(_,(a,b,_)) -> ((M.lookup a ffiFile) == Nothing) &&
                            ((M.lookup b ffiFile) == Nothing)) >>>
@@ -123,7 +126,6 @@ type TypeBounds = Text
 getSimpleClassName :: Text -> Text
 getSimpleClassName = replace "/" "." >>> breakOnEnd "." >>> snd
 
---store the type bounds in global state
 -- TODO: Only handles simple cases like class <E extends Foo> not class <E extends <Foo extends ..>>>
 singleTypeVariable :: TypeVariableDeclaration TypeVariable -> (Text, Text) -- (x,x<:Object)
 singleTypeVariable (TypeVariableDeclaration m y) =
@@ -166,7 +168,6 @@ generateDataDeclaration className info =
 -------------------------------------------------------------------------------------------------------------------
 --------------------------Method Declarations-------------------------------------------------------------------
 
-type FFIFile = Map JavaClassName (EtaPackage,EtaModule,EtaType)
 type NewTypeBounds = Text
 
 formatTypeParameter :: TypeParameter TypeVariable -> (Text,Maybe NewTypeBounds) -- (t,Just )
@@ -282,15 +283,14 @@ ffiAction = do
       sortedVertices = topSort g
       sortedClasses = map vertexFunc >>> map (\(_, key, _) -> key ) $ sortedVertices -- [ClassName]
 
-
       emitText c = let info = fromJust $ M.lookup c finalFFIMap
                        (dataDecls, styDecls, tb) = generateDataDeclaration c info
                        -- put data decls in state
-                    in (dataDecls, styDecls,
+                   in (dataDecls, styDecls,
                         map (generateMethodDeclaration tb c file) (methodInfos info),
                         map (generateStaticFieldDeclaration c file) (fieldInfos info))
 
-      -- foo :: [(DataDeclaration,SubtypeDeclaration,[Maybe TL.Text],[Maybe TL.Text])]
+      -- allInfo :: [(DataDeclaration,SubtypeDeclaration,[Maybe TL.Text],[Maybe TL.Text])]
       allInfo = map emitText sortedClasses
 
       dataInfo = L.foldl' (\s (dd,sty,_,_) -> s <> "\n" <> dd <> "\n" <> sty) "" allInfo
@@ -299,5 +299,4 @@ ffiAction = do
 
   liftIO $ TIO.appendFile "Types.hs" $ TL.toStrict dataInfo
   liftIO $ TIO.appendFile "Methods.hs" methodInfo
-
 -- query env for "package-prefix"
