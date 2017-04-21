@@ -148,7 +148,7 @@ foldExtends t (SimpleReferenceParameter (IClassName x)) = t <> (getSimpleClassNa
 inherits :: [ClassParameter TypeVariable] -> Text  -- things this class actually inherits
 inherits extendTypes = L.foldl' foldExtends "" >>> dropEnd 1 $ extendTypes
 
-generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration,Maybe TypeBounds)
+generateDataDeclaration :: ClassName -> Info -> (DataDeclaration,SubtypeDeclaration,EtaType,Maybe TypeBounds)
 generateDataDeclaration className info =
   let fqClassName = replace "/" "." className
       clsname = getSimpleClassName className
@@ -162,10 +162,10 @@ generateDataDeclaration className info =
                                                              in (y,"(" <> y <> ")",Just $ snd g)
   in (TF.format dataDeclaration (fqClassName,genericClsName,clsname,objectClassname),
       TF.format subtypeDeclaration (genericClsName,(inherits y)),
-      typeBounds)
+      clsname, typeBounds)
 
--- TODO: add the generated type to ffi map
--------------------------------------------------------------------------------------------------------------------
+
+
 --------------------------Method Declarations-------------------------------------------------------------------
 
 type NewTypeBounds = Text
@@ -209,7 +209,6 @@ formatMethodInfo :: FFIFile -> UName -> Attr -> (Text,Text,Text,Text)
 formatMethodInfo m (UName t) (ASignature (MethodSig (MethodSignature _ x y _))) =
   let params = map (formatParameters m) x
       formattedParams = L.foldl' (\s (p,_) -> s <> p <> " ->") "" params
-      --TODO: Store the new type bounds in state
       (returnType,tbounds) = case y of
                                Just a -> formatParameters m a
                                Nothing -> ("()","")
@@ -236,7 +235,7 @@ generateMethodDeclaration typeBounds clsname file MethodInfo {mi_accessFlags=acc
                       True -> Just $ TF.format staticMethodDeclaration (fqCName, methodName, returnType)
                       False -> Just $ TF.format instanceMethodDeclaration (methodName, methodName, returnType)
 
-------------------------------------------------------------------------------------------------------------------
+
 ---------------------------------------Field declarations-------------------------------------------------------
 
 generateStaticFieldDeclaration :: ClassName -> FFIFile -> FieldInfo -> Maybe TL.Text
@@ -262,6 +261,9 @@ ffiAction = do
   package <-  case M.lookup "package-name" env of
                 Nothing -> throwError "package name not provided"
                 Just packageName -> return $ parsePackageName packageName
+  packagePrefix <-  case M.lookup "package-prefix" env of
+                      Nothing -> throwError "package prefix not provided"
+                      Just p -> return $ pack p
   FFIState {ffiFile = file}  <- get
   let f = map (\(a,b) -> (toFilePath a,b)) >>>
           filter (\(a,_) -> package == (pack a)) >>> -- dont use == rather beginswith
@@ -273,7 +275,7 @@ ffiAction = do
       f2 = map (\(a,b) -> (toFilePath a,b)) >>>
            filter (\(a,_) -> S.member a ffiToGenerate) >>>
            map snd >>>
-           map (runGet parseClassFile) >>> -- [(ClassName,Info)] 
+           map (runGet parseClassFile) >>> -- [(ClassName,Info)]
            foldr (\ (a,b) m -> M.insert a b m) M.empty
       finalFFIMap = f2 fileContent -- (Map ClassName Info)
 
@@ -284,19 +286,23 @@ ffiAction = do
       sortedClasses = map vertexFunc >>> map (\(_, key, _) -> key ) $ sortedVertices -- [ClassName]
 
       emitText c = let info = fromJust $ M.lookup c finalFFIMap
-                       (dataDecls, styDecls, tb) = generateDataDeclaration c info
-                       -- put data decls in state
-                   in (dataDecls, styDecls,
+                       (dataDecls, styDecls, datatype, tb) = generateDataDeclaration c info
+                   in (dataDecls, styDecls, datatype,
                         map (generateMethodDeclaration tb c file) (methodInfos info),
                         map (generateStaticFieldDeclaration c file) (fieldInfos info))
 
-      -- allInfo :: [(DataDeclaration,SubtypeDeclaration,[Maybe TL.Text],[Maybe TL.Text])]
-      allInfo = map emitText sortedClasses
+  -- allInfo :: [(DataDeclaration,SubtypeDeclaration,[Maybe TL.Text],[Maybe TL.Text])]
+  allInfo  <- forM sortedClasses $ \ x -> do
+                let (a,b,c,d,e) = emitText x
+                put $ FFIState $ M.insert x (packagePrefix , "Types", c) file
+                --modify (\FFIState {ffiFile = z} -> FFIState $ M.insert x (x,x,x) z)
+                return (a,b,d,e)
 
-      dataInfo = L.foldl' (\s (dd,sty,_,_) -> s <> "\n" <> dd <> "\n" <> sty) "" allInfo
+  let dataInfo = L.foldl' (\s (dd,sty,_,_) -> s <> "\n" <> dd <> "\n" <> sty) "" allInfo
       methodInfo = L.foldl' (\s (_,_,minfos,finfos) -> s <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes minfos)) <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes finfos))) "" allInfo
 
 
   liftIO $ TIO.appendFile "Types.hs" $ TL.toStrict dataInfo
   liftIO $ TIO.appendFile "Methods.hs" methodInfo
+
 -- query env for "package-prefix"
