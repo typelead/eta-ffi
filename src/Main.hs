@@ -4,33 +4,35 @@
 {-# Language PartialTypeSignatures #-}
 module Main where
 
-import Options.Applicative
-import FfiFileParser
 import Control.Category hiding ((.))
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
+
 import Data.Map.Strict as M hiding (map,filter,foldr)
 import Data.Text hiding (map,filter,foldr)
 import Data.Text.IO as TIO
 import Data.Set as S hiding (map,filter,foldr)
-import Path
-import FFIDeclarations
-import qualified Data.List as L
-import qualified Data.Text.Lazy as TL
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text.Format as TF
---import Data.Functor.Identity
---import Data.Semigroup ((<>))
-
 import Data.Graph
+import Data.Binary.Get
 import Data.Maybe (fromJust, catMaybes)
+
+import Path
+import Options.Applicative
+
+import FFIDeclarations
+import JAR (getFilesFromJar)
+import FfiFileParser
+
 import Codec.JVM.Field
 import Codec.JVM.Parse
 import Codec.JVM.Attr
 import Codec.JVM.Types hiding (Super)
-import Data.Binary.Get
-import JAR (getFilesFromJar)
+
+import qualified Data.List as L
+import qualified Data.Text.Lazy as TL
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text.Format as TF
 
 data FFIMapping = FFIMapping [FilePath]
 
@@ -70,7 +72,7 @@ application = Application
 
 readFiles :: [FilePath] -> IO BL.ByteString
 readFiles = fmap BL.concat . mapM BL.readFile
-------------------------------------------------------------------------------
+
 main :: IO ((Either String ()),FFIState)
 main = app =<< execParser opts
   where
@@ -78,10 +80,23 @@ main = app =<< execParser opts
       (header "a test for optparse-applicative" )
 
 app :: Application -> IO ((Either String ()),FFIState)
-app (Application {ffi = FFIMapping filepaths,..}) = do
+app (Application {ffi = FFIMapping filepaths, classpath = cp ,target = target, packagePrefix = prefix, globalFile = gfile}) = do
   csvDatas <- readFiles filepaths
   -- filepaths,package name etc comes inside the map
   runFFI M.empty (FFIState {ffiFile = parseFFI csvDatas}) ffiAction
+
+  {-
+
+data Application = Application
+  { classpath :: String
+  , ffi    :: FFIMapping
+  , target :: String
+  , packagePrefix :: String
+  , globalFile :: Bool
+  }
+
+
+   -}
 
 data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)
                          , typeBounds :: Maybe TypeBounds}
