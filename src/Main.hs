@@ -38,6 +38,7 @@ data FFIMapping = FFIMapping [FilePath]
 
 data Application = Application
   { classpath :: String
+  , packageName :: String
   , ffi    :: FFIMapping
   , target :: String
   , packagePrefix :: String
@@ -57,6 +58,10 @@ application = Application
               ( long "classpath"
                 <> metavar "CLASSPATH"
                 <> help "Target for the greeting" )
+              <*> strOption
+              ( long "package-name"
+                <> metavar "PACKAGE"
+                <> help "Package to import" )
               <*> ffiMapping
               <*> strOption
               ( long "target"
@@ -80,28 +85,14 @@ main = app =<< execParser opts
       (header "a test for optparse-applicative" )
 
 app :: Application -> IO ((Either String ()),FFIState)
-app (Application {ffi = FFIMapping filepaths, classpath = cp ,target = target, packagePrefix = prefix, globalFile = gfile}) = do
+app (Application {ffi = FFIMapping filepaths, classpath = cp , packageName = pn, target = target, packagePrefix = prefix, globalFile = gfile}) = do
   csvDatas <- readFiles filepaths
-  -- filepaths,package name etc comes inside the map
-  runFFI M.empty (FFIState {ffiFile = parseFFI csvDatas}) ffiAction
+  let environment = M.fromList [("classpath",cp), ("package-name",pn), ("package-prefix", prefix)]
+  runFFI environment (FFIState {ffiFile = parseFFI csvDatas}) ffiAction
 
-  {-
+data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)}
 
-data Application = Application
-  { classpath :: String
-  , ffi    :: FFIMapping
-  , target :: String
-  , packagePrefix :: String
-  , globalFile :: Bool
-  }
-
-
-   -}
-
-data FFIState = FFIState { ffiFile :: Map JavaClassName (EtaPackage,EtaModule,EtaType)
-                         , typeBounds :: Maybe TypeBounds}
-
-type Env = M.Map String String -- some Environment
+type Env = M.Map String String -- Environment
 
 type FFIMonad a = ReaderT Env (ExceptT String (StateT FFIState IO)) a
 
@@ -264,7 +255,7 @@ ffiAction :: FFIMonad ()
 ffiAction = do
   env <- ask
   -- fileContent :: [(Path Rel File, ByteString)]
-  fileContent <- case M.lookup "filepath" env of
+  fileContent <- case M.lookup "classpath" env of
                    Nothing -> throwError "Filepath not defined"
                    Just path -> getFilesFromJar path
   package <-  case M.lookup "package-name" env of
@@ -272,7 +263,7 @@ ffiAction = do
                 Just packageName -> return $ parsePackageName packageName
   FFIState {ffiFile = file}  <- get
   let f = map (\(a,b) -> (toFilePath a,b)) >>>
-          filter (\(a,_) -> package == (pack a)) >>>
+          filter (\(a,_) -> package == (pack a)) >>> -- dont use == rather beginswith
           map (\(a,b) -> (a,runGet parseClassFileHeaders b))
       -- ffiToGenerate :: Set FilePath
       -- parentInfo :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))]
@@ -308,3 +299,5 @@ ffiAction = do
 
   liftIO $ TIO.appendFile "Types.hs" $ TL.toStrict dataInfo
   liftIO $ TIO.appendFile "Methods.hs" methodInfo
+
+-- query env for "package-prefix"
