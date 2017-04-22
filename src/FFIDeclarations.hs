@@ -3,6 +3,9 @@ module FFIDeclarations where
 
 import qualified Data.Text.Format as TF
 
+moduleDeclaration :: TF.Format
+moduleDeclaration = "{-# LANGUAGE TypeOperators, DataKinds, TypeFamilies #-} \n module {}.{} where \n import Java"
+
 dataDeclaration :: TF.Format
 dataDeclaration = "data {-# CLASS {} #-} {} = {} (Object# {}) deriving Class"
 

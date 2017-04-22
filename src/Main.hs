@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# Language PartialTypeSignatures #-}
 
 module Main where
 
@@ -174,8 +173,8 @@ formatTypeParameter :: TypeParameter TypeVariable -> (Text,Maybe NewTypeBounds) 
  -- | Their bounds are defined at the data declaration level
 formatTypeParameter (SimpleTypeParameter t _) = (toLower t,Nothing)
  -- | Their bounds are not defined
-formatTypeParameter (WildcardTypeParameter (Extends x)) = undefined
-formatTypeParameter (WildcardTypeParameter (Super x)) = undefined
+formatTypeParameter (WildcardTypeParameter (Extends (VariableReferenceParameter x))) = undefined
+formatTypeParameter (WildcardTypeParameter (Super (VariableReferenceParameter x))) = undefined
 formatTypeParameter (WildcardTypeParameter NotBounded) = ("", Just $ "" <> " <: Object")
 
 formatParameters :: FFIFile -> Parameter TypeVariable -> (Text, NewTypeBounds)   -- ("List t", t <: Object)
@@ -266,7 +265,7 @@ ffiAction = do
                       Just p -> return $ pack p
   FFIState {ffiFile = file}  <- get
   let f = map (\(a,b) -> (toFilePath a,b)) >>>
-          filter (\(a,_) -> package == (pack a)) >>> -- dont use == rather beginswith
+          filter (\(a,_) -> package == (pack a)) >>>
           map (\(a,b) -> (a,runGet parseClassFileHeaders b))
       -- ffiToGenerate :: Set FilePath
       -- parentInfo :: [(FilePath, (ClassName,SuperClassName,[InterfaceName]))]
@@ -302,7 +301,5 @@ ffiAction = do
       methodInfo = L.foldl' (\s (_,_,minfos,finfos) -> s <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes minfos)) <> "\n" <> intercalate "\n" (map TL.toStrict (catMaybes finfos))) "" allInfo
 
 
-  liftIO $ TIO.appendFile "Types.hs" $ TL.toStrict dataInfo
-  liftIO $ TIO.appendFile "Methods.hs" methodInfo
-
--- query env for "package-prefix"
+  liftIO $ TIO.appendFile "Types.hs" $ (TL.toStrict (TF.format moduleDeclaration (packagePrefix,"Types" :: Text))) <> TL.toStrict dataInfo
+  liftIO $ TIO.appendFile "Methods.hs" $ (TL.toStrict (TF.format moduleDeclaration (packagePrefix,"Methods" :: Text))) <> methodInfo
