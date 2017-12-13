@@ -13,8 +13,18 @@ build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:  README.md
 
-executable eta-ffi
+library
   hs-source-dirs:      src
+  default-language:    Haskell2010
+  exposed-modules:     Eta.FFI.Types
+                         -- Eta.FFI.Main
+  build-depends:       base >= 4.7 && < 5
+
+executable eta-ffi
+  hs-source-dirs:      app
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
+                     , eta-ffi
+                     , optparse-applicative
+                     , semigroups
