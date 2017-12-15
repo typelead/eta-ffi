@@ -3,5 +3,7 @@ module Eta.FFI.Types
 
 where
 
-import Eta.FFI.Types.Core as X
-import Eta.FFI.Types.Spec as X
+import Eta.FFI.Types.Class as X
+import Eta.FFI.Types.Core  as X
+import Eta.FFI.Types.Spec  as X
+

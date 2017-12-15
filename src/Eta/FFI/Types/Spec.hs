@@ -3,7 +3,7 @@ module Eta.FFI.Types.Spec where
 import Data.Text (Text)
 import Eta.FFI.Types.Core
 
-newtype FFISpec = FFISpec [Target]
+newtype FFISpec = FFISpec { ffiTargets :: [Target] }
 
 type LiteralString = Text
 type RegEx = Text
@@ -26,6 +26,7 @@ data Filter =
   | FSignature [JavaType]
   | FStatic Bool
   | FType JavaType
+  deriving Show
 
 
 data Safety = Safe | Unsafe | Interruptible

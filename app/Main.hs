@@ -1,7 +1,12 @@
 module Main where
 
+import Eta.FFI
+import Eta.FFI.Spec
+import Eta.FFI.Filter
+import qualified Eta.FFI.Filter as F
 import Options.Applicative
 import Data.Semigroup ((<>))
+import Data.Maybe
 
 data FFIConfig =
   FFIConfig
@@ -39,4 +44,8 @@ main = startApp =<< execParser opts
      <> header "Generate FFI in Eta")
 
 startApp :: FFIConfig -> IO ()
-startApp config = print config
+startApp FFIConfig {..} =
+  print $
+    generateFFI (mkFFISpec [mkTarget (F.regex "org.bouncycastle.crypto.digests.*") []])
+                (fromMaybe [] ffiClasspath)
+                (error "No FFI Mapping yet")

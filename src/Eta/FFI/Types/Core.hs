@@ -1,13 +1,18 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving, DeriveFunctor #-}
 module Eta.FFI.Types.Core where
 
 import Data.Text (Text)
-import Data.Map
+import Data.Text.Lazy.Builder (Builder)
+import Data.Map (Map)
+import Control.Monad.Except (Except, runExcept)
 
 type FQCN = Text
 type PackageName = Text
 type ModuleName = Text
 type TypeName = Text
-type Contents  = Text
+type Contents  = Builder
+type TypeContents  = Builder
+type ModuleContents  = Builder
 type Classpath = [FilePath]
 
 -- Associates a fully-qualified class name (FQCN) to
@@ -27,3 +32,10 @@ data FFIError
    -- wrap it.
    DuplicateFQCNMappings
      [(PackageName, ModuleName, TypeName)]
+ deriving Show
+
+newtype FFI a = FFI (Except FFIError a)
+  deriving (Functor, Applicative, Monad)
+
+runFFI :: FFI a -> Either FFIError a
+runFFI (FFI ex) = runExcept ex
